@@ -1,0 +1,112 @@
+{
+  "updated_at": "2026-09-17T17:47:12+05:30",
+  "timezone": "Asia/Kolkata",
+  "items": {
+    "Sona Masuri Rice": {
+      "unit_price": "46.50",
+      "source": "official-retail",
+      "query": "sona masuri rice 1kg price India"
+    },
+    "Wheat Atta": {
+      "unit_price": "37.48",
+      "source": "official-retail",
+      "query": "wheat atta 1kg price India"
+    },
+    "Toor Dal": {
+      "unit_price": "124.24",
+      "source": "official-retail",
+      "query": "toor dal 1kg price India"
+    },
+    "Moong Dal": {
+      "unit_price": "112.16",
+      "source": "official-retail",
+      "query": "moong dal 1kg price India"
+    },
+    "Chana Dal": {
+      "unit_price": "88.13",
+      "source": "official-retail",
+      "query": "chana dal 1kg price India"
+    },
+    "Urad Dal": {
+      "unit_price": "122.64",
+      "source": "official-retail",
+      "query": "urad dal 1kg price India"
+    },
+    "Masoor Dal": {
+      "unit_price": "90.74",
+      "source": "official-retail",
+      "query": "masoor dal 1kg price India"
+    },
+    "Sunflower Oil": {
+      "unit_price": "193.48",
+      "source": "official-retail",
+      "query": "sunflower oil 1 litre price India"
+    },
+    "Mustard Oil": {
+      "unit_price": "202.52",
+      "source": "official-retail",
+      "query": "mustard oil 1 litre price India"
+    },
+    "Groundnut Oil": {
+      "unit_price": "209.08",
+      "source": "official-retail",
+      "query": "groundnut oil 1 litre price India"
+    },
+    "Sugar": {
+      "unit_price": "58.66",
+      "source": "official-retail",
+      "query": "sugar 1kg price India"
+    },
+    "Iodized Salt": {
+      "unit_price": "22.25",
+      "source": "official-retail",
+      "query": "iodized salt 1kg price India"
+    },
+    "Turmeric Powder": {
+      "unit_price": "334.00",
+      "source": "official-retail",
+      "query": "turmeric powder 100g price India"
+    },
+    "Red Chilli Powder": {
+      "unit_price": "304.20",
+      "source": "official-retail",
+      "query": "red chilli powder 100g price India"
+    },
+    "Coriander Powder": {
+      "unit_price": "175.08",
+      "source": "official-retail",
+      "query": "coriander powder 100g price India"
+    },
+    "Tea Leaf": {
+      "unit_price": "275.27",
+      "source": "official-retail",
+      "query": "tea powder 1kg price India"
+    },
+    "Toned Milk": {
+      "unit_price": "61.24",
+      "source": "official-retail",
+      "query": "toned milk 1 litre price India"
+    },
+    "Onion": {
+      "unit_price": "53.78",
+      "source": "official-retail",
+      "query": "onion price per kg India today"
+    },
+    "Potato": {
+      "unit_price": "22.72",
+      "source": "official-retail",
+      "query": "potato price per kg India today"
+    },
+    "Tomato": {
+      "unit_price": "38.77",
+      "source": "official-retail",
+      "query": "tomato price per kg India today"
+    },
+    "Banana": {
+      "unit_price": "6.20",
+      "source": "official-retail",
+      "query": "banana price per piece India"
+    }
+  },
+  "updated_count": 21
+}
