@@ -20,6 +20,15 @@ class Bill(models.Model):
         (PAY_CARD, "Card"),
     ]
 
+    TEMPLATE_INVOICE = "invoice"
+    TEMPLATE_TAX = "tax_invoice"
+    TEMPLATE_THERMAL = "thermal"
+    TEMPLATE_CHOICES = [
+        (TEMPLATE_INVOICE, "Standard Invoice"),
+        (TEMPLATE_TAX, "Tax Invoice"),
+        (TEMPLATE_THERMAL, "Thermal Cash Memo"),
+    ]
+
     shop_name = models.CharField(max_length=160)
     shop_address = models.CharField(max_length=255, blank=True)
     shop_phone = models.CharField(max_length=20, blank=True)
@@ -31,6 +40,12 @@ class Bill(models.Model):
     bill_number = models.CharField(max_length=32, unique=True)
     date_mode = models.CharField(max_length=16, choices=DATE_MODE_CHOICES)
     bill_date = models.DateField()
+    bill_time = models.TimeField(null=True, blank=True)
+    receipt_template = models.CharField(
+        max_length=16,
+        choices=TEMPLATE_CHOICES,
+        default=TEMPLATE_INVOICE,
+    )
     max_amount = models.DecimalField(max_digits=12, decimal_places=2)
     gst_percent = models.DecimalField(max_digits=5, decimal_places=2, default=5)
     subtotal = models.DecimalField(max_digits=12, decimal_places=2)

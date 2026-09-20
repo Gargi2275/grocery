@@ -21,6 +21,7 @@ const initialForm = {
   customer_address: "",
   customer_phone: "",
   payment_mode: "cash",
+  receipt_template: "invoice",
 };
 
 export default function Generator() {
@@ -127,6 +128,7 @@ export default function Generator() {
         customer_address: form.customer_address,
         customer_phone: form.customer_phone,
         payment_mode: form.payment_mode,
+        receipt_template: form.receipt_template,
       };
       if (form.date_mode === "fixed" || (form.date_mode === "monthly" && form.bill_date)) {
         payload.bill_date = form.bill_date || null;
@@ -265,6 +267,35 @@ export default function Generator() {
               <option value="card">Card</option>
             </select>
           </label>
+          <div className="span-2 product-mode">
+            <span>Bill template</span>
+            <div className="mode-toggle template-toggle" role="group" aria-label="Bill template">
+              <button
+                type="button"
+                className={form.receipt_template === "invoice" ? "active" : ""}
+                onClick={() => update("receipt_template", "invoice")}
+              >
+                Standard Invoice
+              </button>
+              <button
+                type="button"
+                className={form.receipt_template === "tax_invoice" ? "active" : ""}
+                onClick={() => update("receipt_template", "tax_invoice")}
+              >
+                Tax Invoice
+              </button>
+              <button
+                type="button"
+                className={form.receipt_template === "thermal" ? "active" : ""}
+                onClick={() => update("receipt_template", "thermal")}
+              >
+                Thermal Memo
+              </button>
+            </div>
+            <p className="muted field-hint">
+              Standard Invoice matches the mandatory grocery bill format. Each bill gets its own date and time.
+            </p>
+          </div>
           {Number(form.bill_count) > 1 ? (
             <p className="span-2 muted field-hint">
               Separate several customer names with commas. One name is reused on every bill.
@@ -453,7 +484,7 @@ export default function Generator() {
         </div>
       ) : (
         <div className="empty-receipt no-print">
-          <h3>Receipt</h3>
+          <h3>Invoice preview</h3>
           <p>Generate a bill to preview it here.</p>
         </div>
       )}

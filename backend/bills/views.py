@@ -76,6 +76,7 @@ class GenerateBillView(APIView):
                     shop_phone=data.get("shop_phone") or "",
                     customer_phone=data.get("customer_phone") or "",
                     payment_mode=data.get("payment_mode") or "cash",
+                    receipt_template=data.get("receipt_template") or "invoice",
                 )
         except (ValueError, InvalidOperation) as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)

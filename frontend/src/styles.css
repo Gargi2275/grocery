@@ -234,8 +234,8 @@ textarea:focus {
 
 .page-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr);
-  gap: 1.15rem;
+  grid-template-columns: minmax(320px, 0.85fr) minmax(0, 1.15fr);
+  gap: 1.25rem;
   align-items: start;
 }
 
@@ -397,6 +397,10 @@ textarea:focus {
   gap: 1rem;
 }
 
+.wrap-invoice {
+  width: 100%;
+}
+
 .receipt-paper {
   width: min(400px, 100%);
   background: #fffef8;
@@ -405,6 +409,259 @@ textarea:focus {
   font-family: "IBM Plex Mono", "Courier New", monospace;
   font-size: 12px;
   line-height: 1.45;
+}
+
+.invoice-paper {
+  width: min(820px, 100%);
+  background: #fff;
+  color: #111;
+  border: 1px solid #222;
+  padding: 0.85rem 0.9rem 0.55rem;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 11px;
+  line-height: 1.35;
+  box-sizing: border-box;
+}
+
+.invoice-title {
+  margin: 0 0 0.55rem;
+  text-align: center;
+  font-size: 1.15rem;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+}
+
+.invoice-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  border: 1px solid #222;
+  border-bottom: 0;
+}
+
+.inv-party,
+.inv-meta-grid {
+  border-bottom: 1px solid #222;
+  padding: 0.45rem 0.5rem;
+  min-height: 4.5rem;
+}
+
+.inv-party:nth-child(odd),
+.inv-meta-grid:nth-child(odd) {
+  border-right: 1px solid #222;
+}
+
+.inv-party p {
+  margin: 0.1rem 0;
+}
+
+.inv-shop {
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.inv-label {
+  font-weight: 700;
+  margin-bottom: 0.15rem !important;
+}
+
+.inv-meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 0;
+  min-height: 0;
+}
+
+.inv-meta-cell {
+  border-right: 1px solid #222;
+  border-bottom: 1px solid #222;
+  padding: 0.28rem 0.4rem;
+  min-height: 2.1rem;
+}
+
+.inv-meta-cell:nth-child(2n) {
+  border-right: 0;
+}
+
+.inv-meta-grid .inv-meta-cell:nth-last-child(-n + 2) {
+  border-bottom: 0;
+}
+
+.inv-dispatch .inv-meta-cell:nth-last-child(-n + 2) {
+  border-bottom: 1px solid #222;
+}
+
+.inv-terms {
+  grid-column: 1 / -1;
+  border-right: 0 !important;
+  border-bottom: 0 !important;
+  min-height: 3.4rem;
+}
+
+.inv-meta-cell span {
+  display: block;
+  font-size: 10px;
+  color: #333;
+}
+
+.inv-meta-cell strong,
+.inv-meta-cell em {
+  display: block;
+  margin-top: 0.12rem;
+  font-style: normal;
+  min-height: 1em;
+}
+
+.invoice-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 11px;
+}
+
+.invoice-table th,
+.invoice-table td {
+  border: 1px solid #222;
+  padding: 0.28rem 0.3rem;
+  vertical-align: top;
+}
+
+.invoice-table thead th {
+  font-weight: 700;
+  text-align: center;
+  background: #f7f7f7;
+}
+
+.invoice-table .col-sl {
+  width: 7%;
+}
+
+.invoice-table .col-desc {
+  width: 34%;
+  text-align: left;
+}
+
+.invoice-table .col-hsn {
+  width: 10%;
+}
+
+.invoice-table .col-qty {
+  width: 14%;
+}
+
+.invoice-table .col-rate {
+  width: 12%;
+}
+
+.invoice-table .col-per {
+  width: 8%;
+}
+
+.invoice-table .col-amt {
+  width: 15%;
+}
+
+.invoice-table td.num,
+.invoice-table .col-qty,
+.invoice-table .col-rate,
+.invoice-table .col-amt {
+  text-align: right;
+}
+
+.invoice-table .col-per,
+.invoice-table td:nth-child(6) {
+  text-align: center;
+}
+
+.invoice-table .col-sl,
+.invoice-table td:first-child {
+  text-align: center;
+}
+
+.invoice-table .total-row td,
+.invoice-table .tax-row td {
+  border-top-color: #222;
+}
+
+.invoice-table tbody tr:not(.total-row):not(.tax-row) td {
+  height: 1.35rem;
+}
+
+.invoice-words {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 1px solid #222;
+  border-top: 0;
+  padding: 0.45rem 0.55rem;
+}
+
+.invoice-words span {
+  display: block;
+  font-size: 10px;
+}
+
+.invoice-words strong {
+  display: block;
+  margin-top: 0.2rem;
+}
+
+.eoe {
+  margin: 0;
+  align-self: flex-end;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.invoice-footer {
+  display: grid;
+  grid-template-columns: 1.2fr 0.9fr;
+  border: 1px solid #222;
+  border-top: 0;
+}
+
+.inv-declaration,
+.inv-sign {
+  padding: 0.45rem 0.55rem;
+  min-height: 5.2rem;
+}
+
+.inv-declaration {
+  border-right: 1px solid #222;
+}
+
+.inv-declaration p:last-child {
+  margin: 0.35rem 0 0;
+  font-size: 10px;
+}
+
+.inv-sign {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  text-align: right;
+}
+
+.inv-sign p {
+  margin: 0;
+}
+
+.inv-sign span {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.invoice-computer {
+  margin: 0.45rem 0 0;
+  text-align: center;
+  font-size: 10px;
+}
+
+.tax-variant .invoice-title {
+  letter-spacing: 0.08em;
+}
+
+.template-toggle {
+  flex-wrap: wrap;
 }
 
 .cut-line,
@@ -760,9 +1017,17 @@ textarea:focus {
     break-after: auto;
   }
 
-  .receipt-paper {
+  .receipt-paper.thermal-paper {
     border: 0;
     width: 80mm;
+    margin: 0 auto;
+    box-shadow: none;
+  }
+
+  .receipt-paper.invoice-paper {
+    border: 1px solid #222;
+    width: 100%;
+    max-width: 190mm;
     margin: 0 auto;
     box-shadow: none;
   }

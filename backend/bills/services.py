@@ -5,7 +5,7 @@ import random
 import re
 import secrets
 from copy import deepcopy
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 
 from .catalog import adjustment_catalog, grocery_catalog
@@ -268,8 +268,31 @@ def _parse_date(value) -> date:
     return datetime.strptime(str(value), "%Y-%m-%d").date()
 
 
-def make_bill_number(bill_date: date) -> str:
-    return f"INV-{bill_date.strftime('%Y%m%d')}-{secrets.token_hex(2).upper()}"
+def make_bill_number(_bill_date: date) -> str:
+    # Match the sample grocery invoices (short numeric invoice nos).
+    for width in (4, 5, 6):
+        low = 10 ** (width - 1)
+        high = (10 ** width) - 1
+        for _ in range(40):
+            number = f"{random.randint(low, high)}"
+            if not Bill.objects.filter(bill_number=number).exists():
+                return number
+    return f"{secrets.randbelow(900000) + 100000}"
+
+
+def make_bill_time(used: set[str] | None = None) -> time:
+    """Random shop hours time; unique within a generate batch when possible."""
+    used = used if used is not None else set()
+    for _ in range(80):
+        hour = random.randint(9, 20)
+        minute = random.randint(0, 59)
+        second = random.randint(0, 59)
+        candidate = time(hour, minute, second)
+        key = candidate.strftime("%H:%M:%S")
+        if key not in used:
+            used.add(key)
+            return candidate
+    return time(random.randint(9, 20), random.randint(0, 59), random.randint(0, 59))
 
 
 def generate_bill_payload(
@@ -290,6 +313,8 @@ def generate_bill_payload(
     shop_phone: str = "",
     customer_phone: str = "",
     payment_mode: str = "cash",
+    receipt_template: str = Bill.TEMPLATE_INVOICE,
+    used_times: set[str] | None = None,
 ) -> dict:
     if max_amount <= 0:
         raise ValueError("max_amount must be greater than 0.")
@@ -317,6 +342,10 @@ def generate_bill_payload(
     while Bill.objects.filter(bill_number=bill_number).exists():
         bill_number = make_bill_number(resolved_date)
 
+    template = receipt_template or Bill.TEMPLATE_INVOICE
+    if template not in {c[0] for c in Bill.TEMPLATE_CHOICES}:
+        template = Bill.TEMPLATE_INVOICE
+
     bill = Bill.objects.create(
         shop_name=shop_name.strip(),
         shop_address=(shop_address or "").strip(),
@@ -329,6 +358,8 @@ def generate_bill_payload(
         bill_number=bill_number,
         date_mode=date_mode,
         bill_date=resolved_date,
+        bill_time=make_bill_time(used_times),
+        receipt_template=template,
         max_amount=_money(max_amount),
         gst_percent=_money(gst_percent),
         subtotal=subtotal,
@@ -381,10 +412,12 @@ def generate_bills(
     shop_phone: str = "",
     customer_phone: str = "",
     payment_mode: str = "cash",
+    receipt_template: str = Bill.TEMPLATE_INVOICE,
 ) -> list:
     if count < 1:
         raise ValueError("count must be at least 1.")
     names = split_customer_names(customer_name, count)
+    used_times: set[str] = set()
     return [
         generate_bill_payload(
             shop_name=shop_name,
@@ -403,6 +436,8 @@ def generate_bills(
             shop_phone=shop_phone,
             customer_phone=customer_phone,
             payment_mode=payment_mode,
+            receipt_template=receipt_template,
+            used_times=used_times,
         )
         for name in names
     ]

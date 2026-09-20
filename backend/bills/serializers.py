@@ -39,6 +39,8 @@ class BillSerializer(serializers.ModelSerializer):
             "bill_number",
             "date_mode",
             "bill_date",
+            "bill_time",
+            "receipt_template",
             "max_amount",
             "gst_percent",
             "subtotal",
@@ -73,6 +75,8 @@ class BillListSerializer(serializers.ModelSerializer):
             "customer_name",
             "bill_number",
             "bill_date",
+            "bill_time",
+            "receipt_template",
             "grand_total",
             "gst_percent",
             "created_at",
@@ -106,6 +110,11 @@ class GenerateBillSerializer(serializers.Serializer):
     apply_gst = serializers.BooleanField(required=False, default=True)
     gst_percent = serializers.DecimalField(
         max_digits=5, decimal_places=2, required=False, default=Decimal("5.00")
+    )
+    receipt_template = serializers.ChoiceField(
+        choices=[c[0] for c in Bill.TEMPLATE_CHOICES],
+        required=False,
+        default=Bill.TEMPLATE_INVOICE,
     )
 
     def validate(self, attrs):
