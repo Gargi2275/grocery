@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Callable
 
 from .constants import ADJUSTMENT_ITEMS, GROCERY_ITEMS
+from .custom_products import custom_skus
 
 PRICE_FILE = Path(__file__).resolve().parent / "data" / "live_prices.json"
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -202,6 +203,10 @@ def _range_for(name: str, unit: str, fallback: Decimal) -> tuple[Decimal, Decima
         if "milk" in lowered:
             return Decimal("40"), Decimal("90")
         return Decimal("90"), Decimal("320")
+    if unit == "ml":
+        return Decimal("1"), Decimal("80")
+    if unit == "g":
+        return Decimal("0.05"), Decimal("40")
     if "coffee" in lowered:
         return Decimal("1500"), Decimal("8000")
     if any(word in lowered for word in ("masala", "turmeric", "chilli", "coriander")):
@@ -301,12 +306,19 @@ def apply_live_prices(items: list[dict]) -> list[dict]:
     return updated
 
 
+def _merge_catalog(base: list[dict], extra: list[dict]) -> list[dict]:
+    merged = {item["name"].lower(): item for item in apply_live_prices(base)}
+    for item in extra:
+        merged[item["name"].lower()] = item
+    return list(merged.values())
+
+
 def grocery_catalog() -> list[dict]:
-    return apply_live_prices(GROCERY_ITEMS)
+    return _merge_catalog(GROCERY_ITEMS, custom_skus("grocery"))
 
 
 def adjustment_catalog() -> list[dict]:
-    return apply_live_prices(ADJUSTMENT_ITEMS)
+    return _merge_catalog(ADJUSTMENT_ITEMS, custom_skus("adjustment"))
 
 
 def refresh_live_prices(progress: Callable[[str], None] | None = None, time_budget: float = 20.0) -> dict:

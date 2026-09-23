@@ -3,15 +3,22 @@ import { api } from "../api";
 import { useAuth } from "../AuthContext";
 import Receipt from "../components/Receipt";
 
+function localIsoDate(value = new Date()) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 const initialForm = {
   shop_name: "Sri Lakshmi Kirana",
   gst_number: "29ABCDE1234F1Z5",
   customer_name: "",
   max_amount: "1500",
   date_mode: "fixed",
-  bill_date: new Date().toISOString().slice(0, 10),
-  date_range_start: "",
-  date_range_end: "",
+  bill_date: localIsoDate(),
+  date_range_start: localIsoDate(new Date(new Date().getFullYear(), new Date().getMonth() - 2, 1)),
+  date_range_end: localIsoDate(),
   product_mode: "random",
   bill_count: "1",
   apply_gst: true,
@@ -31,10 +38,12 @@ export default function Generator() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [catalog, setCatalog] = useState({ grocery: [], adjustments: [], prices_updated_at: null });
+  const [catalog, setCatalog] = useState({ grocery: [], adjustments: [], prices_updated_at: null, units: ["kg", "g", "ltr", "ml", "pcs"] });
   const [selected, setSelected] = useState({});
   const [productQuery, setProductQuery] = useState("");
   const [refreshingPrices, setRefreshingPrices] = useState(false);
+  const [savingProduct, setSavingProduct] = useState(false);
+  const [newProduct, setNewProduct] = useState({ name: "", unit: "kg", unit_price: "", item_type: "grocery" });
 
   useEffect(() => {
     let cancelled = false;
@@ -71,7 +80,68 @@ export default function Generator() {
     }
   }
 
+  const customItems = useMemo(
+    () => [...(catalog.grocery || []), ...(catalog.adjustments || [])].filter((item) => item.custom),
+    [catalog.grocery, catalog.adjustments],
+  );
   const selectedCount = Object.keys(selected).length;
+
+  async function addProduct(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    setError("");
+    if (!newProduct.name.trim() || !newProduct.unit_price) {
+      setError("Enter a product name, unit, and price.");
+      return;
+    }
+    setSavingProduct(true);
+    try {
+      const data = await api("/api/catalog/products/", {
+        method: "POST",
+        token,
+        body: {
+          name: newProduct.name.trim(),
+          unit: newProduct.unit,
+          unit_price: newProduct.unit_price,
+          item_type: newProduct.item_type,
+        },
+      });
+      setCatalog(data);
+      setNewProduct({ name: "", unit: newProduct.unit, unit_price: "", item_type: "grocery" });
+    } catch (err) {
+      if (err.status === 401) {
+        logout();
+        return;
+      }
+      setError(err.message || "Could not add product.");
+    } finally {
+      setSavingProduct(false);
+    }
+  }
+
+  async function removeProduct(name) {
+    setError("");
+    try {
+      const data = await api("/api/catalog/products/", {
+        method: "DELETE",
+        token,
+        body: { name },
+      });
+      setCatalog(data);
+      setSelected((current) => {
+        if (current[name] == null) return current;
+        const next = { ...current };
+        delete next[name];
+        return next;
+      });
+    } catch (err) {
+      if (err.status === 401) {
+        logout();
+        return;
+      }
+      setError(err.message || "Could not remove product.");
+    }
+  }
 
   const filteredGrocery = useMemo(
     () => filterCatalog(catalog.grocery, productQuery),
@@ -93,7 +163,7 @@ export default function Generator() {
         delete next[item.name];
         return next;
       }
-      return { ...current, [item.name]: item.qty_options[0] };
+      return { ...current, [item.name]: item.qty_options?.[0] || "1" };
     });
   }
 
@@ -109,6 +179,10 @@ export default function Generator() {
     const count = Math.max(1, Math.min(25, Number(form.bill_count) || 1));
     if (form.product_mode === "select" && !grocerySelected) {
       setError("Select at least one grocery product, or switch to random.");
+      return;
+    }
+    if (form.date_mode === "monthly" && (!form.date_range_start || !form.date_range_end)) {
+      setError("Choose a start range and end range for monthly bills.");
       return;
     }
     setBusy(true);
@@ -130,10 +204,10 @@ export default function Generator() {
         payment_mode: form.payment_mode,
         receipt_template: form.receipt_template,
       };
-      if (form.date_mode === "fixed" || (form.date_mode === "monthly" && form.bill_date)) {
+      if (form.date_mode === "fixed") {
         payload.bill_date = form.bill_date || null;
       }
-      if (form.date_mode === "random") {
+      if (form.date_mode === "monthly" || form.date_mode === "random") {
         if (form.date_range_start) payload.date_range_start = form.date_range_start;
         if (form.date_range_end) payload.date_range_end = form.date_range_end;
       }
@@ -296,7 +370,7 @@ export default function Generator() {
               Standard Invoice matches the mandatory grocery bill format. Each bill gets its own date and time.
             </p>
           </div>
-          {Number(form.bill_count) > 1 ? (
+          {Number(form.bill_count) > 1 || form.date_mode === "monthly" ? (
             <p className="span-2 muted field-hint">
               Separate several customer names with commas. One name is reused on every bill.
             </p>
@@ -312,18 +386,22 @@ export default function Generator() {
               required
             />
           </label>
-          <label>
-            Number of bills
-            <input
-              type="number"
-              min="1"
-              max="25"
-              step="1"
-              value={form.bill_count}
-              onChange={(e) => update("bill_count", e.target.value)}
-              required
-            />
-          </label>
+          {form.date_mode !== "monthly" ? (
+            <label>
+              Number of bills
+              <input
+                type="number"
+                min="1"
+                max="25"
+                step="1"
+                value={form.bill_count}
+                onChange={(e) => update("bill_count", e.target.value)}
+                required
+              />
+            </label>
+          ) : (
+            <p className="muted field-hint">One bill is generated for each month in the time period.</p>
+          )}
           <label>
             Date mode
             <select value={form.date_mode} onChange={(e) => update("date_mode", e.target.value)}>
@@ -338,30 +416,31 @@ export default function Generator() {
               <input type="date" value={form.bill_date} onChange={(e) => update("bill_date", e.target.value)} required />
             </label>
           )}
-          {form.date_mode === "monthly" && (
-            <label className="span-2">
-              Day of month
-              <input type="date" value={form.bill_date} onChange={(e) => update("bill_date", e.target.value)} />
-            </label>
-          )}
-          {form.date_mode === "random" && (
+          {(form.date_mode === "monthly" || form.date_mode === "random") && (
             <>
               <label>
-                Range start
+                Start range
                 <input
                   type="date"
                   value={form.date_range_start}
                   onChange={(e) => update("date_range_start", e.target.value)}
+                  required={form.date_mode === "monthly"}
                 />
               </label>
               <label>
-                Range end
+                End range
                 <input
                   type="date"
                   value={form.date_range_end}
                   onChange={(e) => update("date_range_end", e.target.value)}
+                  required={form.date_mode === "monthly"}
                 />
               </label>
+              {form.date_mode === "monthly" ? (
+                <p className="span-2 muted field-hint">
+                  One grocery bill is created for each month between start range and end range.
+                </p>
+              ) : null}
             </>
           )}
           <div className="span-2 price-bar">
@@ -378,6 +457,76 @@ export default function Generator() {
             >
               {refreshingPrices ? "Updating prices…" : "Update prices from Google"}
             </button>
+            <div className="add-product">
+              <p className="add-product-title">Add product price</p>
+              <p className="muted field-hint">
+                Save a rate per kg, g, ltr, ml, or pcs. Custom products are included when bills are generated.
+              </p>
+              <div className="add-product-grid">
+                <label>
+                  Product name
+                  <input
+                    value={newProduct.name}
+                    onChange={(e) => setNewProduct((current) => ({ ...current, name: e.target.value }))}
+                    placeholder="Ghee"
+                  />
+                </label>
+                <label>
+                  Unit
+                  <select
+                    value={newProduct.unit}
+                    onChange={(e) => setNewProduct((current) => ({ ...current, unit: e.target.value }))}
+                  >
+                    {(catalog.units || ["kg", "g", "ltr", "ml", "pcs"]).map((unit) => (
+                      <option key={unit} value={unit}>
+                        {UNIT_LABELS[unit] || unit}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Price per {newProduct.unit}
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={newProduct.unit_price}
+                    onChange={(e) => setNewProduct((current) => ({ ...current, unit_price: e.target.value }))}
+                    placeholder="0.00"
+                  />
+                </label>
+                <label>
+                  Type
+                  <select
+                    value={newProduct.item_type}
+                    onChange={(e) => setNewProduct((current) => ({ ...current, item_type: e.target.value }))}
+                  >
+                    <option value="grocery">Grocery</option>
+                    <option value="adjustment">Extra</option>
+                  </select>
+                </label>
+                <button type="button" className="btn secondary" onClick={addProduct} disabled={savingProduct || busy}>
+                  {savingProduct ? "Saving…" : "Add product"}
+                </button>
+              </div>
+              {customItems.length ? (
+                <ul className="custom-product-list">
+                  {customItems.map((item) => (
+                    <li key={item.name}>
+                      <span>
+                        {item.name}
+                        <em>
+                          ₹ {item.unit_price} / {item.unit}
+                        </em>
+                      </span>
+                      <button type="button" className="text-btn" onClick={() => removeProduct(item.name)}>
+                        Remove
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
           </div>
           <div className="span-2 product-mode">
             <span>Products</span>
@@ -397,6 +546,13 @@ export default function Generator() {
                 Select products
               </button>
             </div>
+            <p className="muted field-hint">
+              {form.product_mode === "random"
+                ? "Each generated bill gets a different mix of products and quantities — not the same items on every bill."
+                : Number(form.bill_count) > 1 || form.date_mode === "monthly"
+                  ? "Selected products are the pool. Each bill randomly picks a different subset and quantity."
+                  : "This bill will use the products you tick below."}
+            </p>
           </div>
           {form.product_mode === "select" && (
             <div className="span-2 product-picker">
@@ -422,6 +578,7 @@ export default function Generator() {
                 selected={selected}
                 onToggle={toggleProduct}
                 onQty={setQty}
+                onRemove={removeProduct}
               />
               <ProductGroup
                 title="Extras"
@@ -429,6 +586,7 @@ export default function Generator() {
                 selected={selected}
                 onToggle={toggleProduct}
                 onQty={setQty}
+                onRemove={removeProduct}
               />
               {!filteredGrocery.length && !filteredAdjustments.length ? (
                 <p className="muted">No products match that search.</p>
@@ -440,9 +598,11 @@ export default function Generator() {
         <button className="btn" type="submit" disabled={busy}>
           {busy
             ? "Generating…"
-            : Number(form.bill_count) > 1
-              ? `Generate ${form.bill_count} bills`
-              : "Generate bill"}
+            : form.date_mode === "monthly"
+              ? "Generate monthly bills"
+              : Number(form.bill_count) > 1
+                ? `Generate ${form.bill_count} bills`
+                : "Generate bill"}
         </button>
       </form>
       {bills.length > 0 ? (
@@ -492,7 +652,7 @@ export default function Generator() {
   );
 }
 
-function ProductGroup({ title, items, selected, onToggle, onQty }) {
+function ProductGroup({ title, items, selected, onToggle, onQty, onRemove }) {
   if (!items.length) return null;
   return (
     <section className="product-group">
@@ -507,16 +667,21 @@ function ProductGroup({ title, items, selected, onToggle, onQty }) {
                 <span className="product-name">{item.name}</span>
                 <span className="product-meta">
                   ₹ {item.unit_price} / {item.unit}
+                  {item.custom ? " · custom" : ""}
                 </span>
               </label>
               {checked ? (
                 <select value={selected[item.name]} onChange={(e) => onQty(item.name, e.target.value)}>
-                  {item.qty_options.map((qty) => (
+                  {(item.qty_options || ["1"]).map((qty) => (
                     <option key={qty} value={qty}>
                       {qty} {item.unit}
                     </option>
                   ))}
                 </select>
+              ) : item.custom ? (
+                <button type="button" className="text-btn" onClick={() => onRemove(item.name)}>
+                  Remove
+                </button>
               ) : null}
             </li>
           );
@@ -525,6 +690,14 @@ function ProductGroup({ title, items, selected, onToggle, onQty }) {
     </section>
   );
 }
+
+const UNIT_LABELS = {
+  kg: "kg",
+  g: "gram (g)",
+  ltr: "liter (ltr)",
+  ml: "ml",
+  pcs: "pcs",
+};
 
 function filterCatalog(items, query) {
   const needle = query.trim().toLowerCase();

@@ -56,12 +56,16 @@ ADJUSTMENT_ITEMS = [
 
 MIN_QTY = {
     "kg": Decimal("0.05"),
+    "g": Decimal("10"),
     "ltr": Decimal("0.25"),
+    "ml": Decimal("50"),
     "pcs": Decimal("1"),
 }
 
 QTY_STEP = {
     "kg": Decimal("0.05"),
+    "g": Decimal("10"),
     "ltr": Decimal("0.25"),
+    "ml": Decimal("50"),
     "pcs": Decimal("1"),
 }

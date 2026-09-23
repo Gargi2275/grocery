@@ -88,6 +88,13 @@ class SelectedProductSerializer(serializers.Serializer):
     quantity = serializers.DecimalField(max_digits=10, decimal_places=3, required=False, allow_null=True)
 
 
+class CustomProductSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=160)
+    unit = serializers.ChoiceField(choices=["kg", "g", "ltr", "ml", "pcs"])
+    unit_price = serializers.DecimalField(max_digits=10, decimal_places=2)
+    item_type = serializers.ChoiceField(choices=["grocery", "adjustment"], required=False, default="grocery")
+
+
 class GenerateBillSerializer(serializers.Serializer):
     shop_name = serializers.CharField(max_length=160)
     shop_address = serializers.CharField(max_length=255, required=False, allow_blank=True)
@@ -131,6 +138,11 @@ class GenerateBillSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 {"gst_percent": "GST percent must be between 0 and 40."}
             )
+        if attrs.get("date_mode") == Bill.DATE_MONTHLY:
+            if not attrs.get("date_range_start") or not attrs.get("date_range_end"):
+                raise serializers.ValidationError(
+                    {"date_range_start": "Start range and end range are required for monthly bills."}
+                )
         return attrs
 
 

@@ -51,43 +51,84 @@ def _refresh_totals(items: list[dict]) -> None:
         item["total_price"] = _line_total(item["quantity"], item["unit_price"])
 
 
-def _pick_grocery_lines(count: int) -> list[dict]:
-    grocery = grocery_catalog()
+def _sku_line(sku: dict, item_type: str, quantity: Decimal | None = None) -> dict:
+    if quantity is None:
+        if item_type == BillItem.GROCERY:
+            options = sku.get("qty_options") or ["1"]
+            quantity = Decimal(random.choice(options))
+        else:
+            quantity = Decimal(random.randint(1, 3))
+    line = {
+        "item_type": item_type,
+        "name": sku["name"],
+        "quantity": quantity,
+        "unit": sku["unit"],
+        "unit_price": sku["unit_price"],
+        "total_price": _line_total(quantity, sku["unit_price"]),
+    }
+    if item_type == BillItem.GROCERY:
+        options = sku.get("qty_options") or [str(quantity)]
+        line["max_qty"] = max(Decimal(max(options)), quantity)
+    return line
+
+
+def _pick_grocery_lines(count: int, pool: list[dict] | None = None) -> list[dict]:
+    grocery = pool if pool is not None else grocery_catalog()
+    if not grocery:
+        return []
     sample = deepcopy(random.sample(grocery, k=min(count, len(grocery))))
-    lines = []
-    for sku in sample:
-        quantity = Decimal(random.choice(sku["qty_options"]))
-        lines.append(
-            {
-                "item_type": BillItem.GROCERY,
-                "name": sku["name"],
-                "quantity": quantity,
-                "unit": sku["unit"],
-                "unit_price": sku["unit_price"],
-                "total_price": _line_total(quantity, sku["unit_price"]),
-                "max_qty": Decimal(max(sku["qty_options"])),
-            }
-        )
-    return lines
+    return [_sku_line(sku, BillItem.GROCERY) for sku in sample]
 
 
-def _pick_adjustment_lines(count: int) -> list[dict]:
-    adjustments = adjustment_catalog()
+def _pick_adjustment_lines(count: int, pool: list[dict] | None = None) -> list[dict]:
+    adjustments = pool if pool is not None else adjustment_catalog()
+    if not adjustments or count <= 0:
+        return []
     sample = deepcopy(random.sample(adjustments, k=min(count, len(adjustments))))
-    lines = []
-    for sku in sample:
-        quantity = Decimal(random.randint(1, 3))
-        lines.append(
-            {
-                "item_type": BillItem.ADJUSTMENT,
-                "name": sku["name"],
-                "quantity": quantity,
-                "unit": sku["unit"],
-                "unit_price": sku["unit_price"],
-                "total_price": _line_total(quantity, sku["unit_price"]),
-            }
-        )
-    return lines
+    return [_sku_line(sku, BillItem.ADJUSTMENT) for sku in sample]
+
+
+def _deal_sku_batches(catalog: list[dict], bill_count: int, min_k: int, max_k: int) -> list[list[dict]]:
+    if bill_count < 1:
+        return []
+    if not catalog:
+        return [[] for _ in range(bill_count)]
+    deck = deepcopy(catalog)
+    random.shuffle(deck)
+    n = len(deck)
+    batches: list[list[dict]] = []
+    cursor = 0
+    seen: set[tuple[str, ...]] = set()
+    for _ in range(bill_count):
+        low = min(min_k, n)
+        high = min(max_k, n)
+        if high < low:
+            low = high
+        k = random.randint(low, high) if high > 0 else 0
+        if k <= 0:
+            batches.append([])
+            continue
+        if n > 1 and bill_count > 1 and k == n and n > 2:
+            k = max(1, n - 1)
+        batch = [deck[(cursor + i) % n] for i in range(k)]
+        fingerprint = tuple(sorted(sku["name"] for sku in batch))
+        attempts = 0
+        while fingerprint in seen and attempts < 20 and n > 1:
+            cursor = (cursor + 1) % n
+            k = random.randint(low, high)
+            if n > 1 and bill_count > 1 and k == n and n > 2:
+                k = max(1, n - 1)
+            batch = [deck[(cursor + i) % n] for i in range(k)]
+            fingerprint = tuple(sorted(sku["name"] for sku in batch))
+            attempts += 1
+        seen.add(fingerprint)
+        cursor = (cursor + max(k, 1)) % n
+        batches.append(batch)
+    return batches
+
+
+def _lines_from_skus(skus: list[dict], item_type: str) -> list[dict]:
+    return [_sku_line(sku, item_type) for sku in deepcopy(skus)]
 
 
 def _catalog_lookup() -> dict[str, tuple[str, dict]]:
@@ -96,7 +137,7 @@ def _catalog_lookup() -> dict[str, tuple[str, dict]]:
     return lookup
 
 
-def _lines_from_selection(selected_products: list[dict]) -> tuple[list[dict], list[dict]]:
+def _lines_from_selection(selected_products: list[dict], randomize: bool = False) -> tuple[list[dict], list[dict]]:
     lookup = _catalog_lookup()
     grocery: list[dict] = []
     adjustments: list[dict] = []
@@ -111,31 +152,42 @@ def _lines_from_selection(selected_products: list[dict]) -> tuple[list[dict], li
 
         item_type, sku = lookup[name]
         raw_qty = entry.get("quantity")
-        if raw_qty is not None and str(raw_qty) != "":
+        if randomize or raw_qty is None or str(raw_qty) == "":
+            quantity = None
+        else:
             quantity = Decimal(str(raw_qty))
             if quantity <= 0:
                 raise ValueError(f"Quantity for {name} must be greater than 0.")
-        elif item_type == BillItem.GROCERY:
-            quantity = Decimal(random.choice(sku["qty_options"]))
-        else:
-            quantity = Decimal(random.randint(1, 3))
 
-        line = {
-            "item_type": item_type,
-            "name": sku["name"],
-            "quantity": quantity,
-            "unit": sku["unit"],
-            "unit_price": sku["unit_price"],
-            "total_price": _line_total(quantity, sku["unit_price"]),
-        }
+        line = _sku_line(sku, item_type, quantity)
         if item_type == BillItem.GROCERY:
-            max_qty = Decimal(max(sku["qty_options"]))
-            line["max_qty"] = max(max_qty, quantity)
             grocery.append(line)
         else:
             adjustments.append(line)
         seen.add(name)
 
+    if not grocery:
+        raise ValueError("Select at least one grocery product.")
+    return grocery, adjustments
+
+
+def _selection_pools(selected_products: list[dict]) -> tuple[list[dict], list[dict]]:
+    lookup = _catalog_lookup()
+    grocery: list[dict] = []
+    adjustments: list[dict] = []
+    seen: set[str] = set()
+    for entry in selected_products or []:
+        name = str(entry.get("name") or "").strip()
+        if not name or name in seen:
+            continue
+        if name not in lookup:
+            raise ValueError(f"Unknown product: {name}")
+        item_type, sku = lookup[name]
+        if item_type == BillItem.GROCERY:
+            grocery.append(sku)
+        else:
+            adjustments.append(sku)
+        seen.add(name)
     if not grocery:
         raise ValueError("Select at least one grocery product.")
     return grocery, adjustments
@@ -245,7 +297,11 @@ def resolve_bill_date(
         return _parse_date(bill_date)
 
     if date_mode == Bill.DATE_MONTHLY:
-        day = _parse_date(bill_date).day if bill_date else today.day
+        if bill_date:
+            return _parse_date(bill_date)
+        if date_range_start:
+            return _parse_date(date_range_start)
+        day = today.day
         last_day = calendar.monthrange(today.year, today.month)[1]
         return date(today.year, today.month, min(day, last_day))
 
@@ -258,6 +314,34 @@ def resolve_bill_date(
         return start + timedelta(days=random.randint(0, span))
 
     raise ValueError("date_mode must be one of: fixed, monthly, random.")
+
+
+def monthly_bill_dates(date_range_start, date_range_end) -> list[date]:
+    if not date_range_start or not date_range_end:
+        raise ValueError("Start range and end range are required when date mode is monthly.")
+    start = _parse_date(date_range_start)
+    end = _parse_date(date_range_end)
+    if start > end:
+        start, end = end, start
+    dates: list[date] = []
+    year, month = start.year, start.month
+    day = start.day
+    while (year, month) <= (end.year, end.month):
+        last_day = calendar.monthrange(year, month)[1]
+        bill_day = date(year, month, min(day, last_day))
+        if bill_day < start:
+            bill_day = start
+        if bill_day > end:
+            bill_day = end
+        dates.append(bill_day)
+        if month == 12:
+            year += 1
+            month = 1
+        else:
+            month += 1
+    if len(dates) > 36:
+        raise ValueError("Monthly range cannot exceed 36 months.")
+    return dates
 
 
 def _parse_date(value) -> date:
@@ -315,6 +399,9 @@ def generate_bill_payload(
     payment_mode: str = "cash",
     receipt_template: str = Bill.TEMPLATE_INVOICE,
     used_times: set[str] | None = None,
+    grocery_lines=None,
+    adjustment_lines=None,
+    allow_grow: bool | None = None,
 ) -> dict:
     if max_amount <= 0:
         raise ValueError("max_amount must be greater than 0.")
@@ -325,14 +412,21 @@ def generate_bill_payload(
     gst_rate = _gst_fraction(gst_percent)
 
     resolved_date = resolve_bill_date(date_mode, bill_date, date_range_start, date_range_end)
-    if product_mode == "select":
+    if grocery_lines is not None:
+        grocery = deepcopy(grocery_lines)
+        adjustments = deepcopy(adjustment_lines or [])
+        grow = product_mode != "select" if allow_grow is None else allow_grow
+        grocery, adjustments, totals = _fit_to_budget(
+            grocery, adjustments, max_amount, allow_grow=grow, gst_rate=gst_rate
+        )
+    elif product_mode == "select":
         grocery, adjustments = _lines_from_selection(selected_products or [])
         grocery, adjustments, totals = _fit_to_budget(
             grocery, adjustments, max_amount, allow_grow=False, gst_rate=gst_rate
         )
     else:
-        grocery = _pick_grocery_lines(random.randint(8, 12))
-        adjustments = _pick_adjustment_lines(random.randint(2, 4))
+        grocery = _pick_grocery_lines(random.randint(6, 11))
+        adjustments = _pick_adjustment_lines(random.randint(1, 4))
         grocery, adjustments, totals = _fit_to_budget(
             grocery, adjustments, max_amount, gst_rate=gst_rate
         )
@@ -393,6 +487,29 @@ def split_customer_names(customer_name: str, count: int) -> list[str]:
     return [names[i % len(names)] for i in range(count)]
 
 
+def _bill_line_batches(count: int, product_mode: str, selected_products) -> list[tuple[list[dict], list[dict]]]:
+    if count < 1:
+        return []
+    if product_mode == "select":
+        grocery_pool, adj_pool = _selection_pools(selected_products or [])
+        if count == 1:
+            grocery, adjustments = _lines_from_selection(selected_products or [])
+            return [(grocery, adjustments)]
+        grocery_batches = _deal_sku_batches(grocery_pool, count, min_k=max(1, min(4, len(grocery_pool))), max_k=len(grocery_pool))
+        adj_batches = _deal_sku_batches(adj_pool, count, min_k=0, max_k=len(adj_pool)) if adj_pool else [[] for _ in range(count)]
+        return [
+            (_lines_from_skus(grocery, BillItem.GROCERY), _lines_from_skus(adjustments, BillItem.ADJUSTMENT))
+            for grocery, adjustments in zip(grocery_batches, adj_batches)
+        ]
+
+    grocery_batches = _deal_sku_batches(grocery_catalog(), count, min_k=6, max_k=11)
+    adj_batches = _deal_sku_batches(adjustment_catalog(), count, min_k=1, max_k=4)
+    return [
+        (_lines_from_skus(grocery, BillItem.GROCERY), _lines_from_skus(adjustments, BillItem.ADJUSTMENT))
+        for grocery, adjustments in zip(grocery_batches, adj_batches)
+    ]
+
+
 def generate_bills(
     *,
     count: int = 1,
@@ -414,10 +531,43 @@ def generate_bills(
     payment_mode: str = "cash",
     receipt_template: str = Bill.TEMPLATE_INVOICE,
 ) -> list:
+    if date_mode == Bill.DATE_MONTHLY:
+        month_dates = monthly_bill_dates(date_range_start, date_range_end)
+        names = split_customer_names(customer_name, len(month_dates))
+        used_times: set[str] = set()
+        batches = _bill_line_batches(len(month_dates), product_mode, selected_products)
+        return [
+            generate_bill_payload(
+                shop_name=shop_name,
+                gst_number=gst_number,
+                customer_name=name,
+                max_amount=max_amount,
+                date_mode=date_mode,
+                bill_date=month_date,
+                date_range_start=date_range_start,
+                date_range_end=date_range_end,
+                product_mode=product_mode,
+                selected_products=selected_products,
+                gst_percent=gst_percent,
+                shop_address=shop_address,
+                customer_address=customer_address,
+                shop_phone=shop_phone,
+                customer_phone=customer_phone,
+                payment_mode=payment_mode,
+                receipt_template=receipt_template,
+                used_times=used_times,
+                grocery_lines=grocery,
+                adjustment_lines=adjustments,
+                allow_grow=product_mode != "select" or len(month_dates) > 1,
+            )
+            for name, month_date, (grocery, adjustments) in zip(names, month_dates, batches)
+        ]
+
     if count < 1:
         raise ValueError("count must be at least 1.")
     names = split_customer_names(customer_name, count)
     used_times: set[str] = set()
+    batches = _bill_line_batches(count, product_mode, selected_products)
     return [
         generate_bill_payload(
             shop_name=shop_name,
@@ -437,7 +587,10 @@ def generate_bills(
             customer_phone=customer_phone,
             payment_mode=payment_mode,
             receipt_template=receipt_template,
-            used_times=used_times,
-        )
-        for name in names
+                used_times=used_times,
+                grocery_lines=grocery,
+                adjustment_lines=adjustments,
+                allow_grow=product_mode != "select" or count > 1,
+            )
+        for name, (grocery, adjustments) in zip(names, batches)
     ]

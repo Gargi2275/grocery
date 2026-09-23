@@ -263,6 +263,51 @@ textarea:focus {
   margin: 0;
 }
 
+.add-product {
+  display: grid;
+  gap: 0.55rem;
+  padding-top: 0.35rem;
+  border-top: 1px dashed var(--line);
+}
+
+.add-product-title {
+  margin: 0;
+  font-weight: 700;
+}
+
+.add-product-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 0.9fr 0.9fr 0.9fr auto;
+  gap: 0.55rem;
+  align-items: end;
+}
+
+.add-product-grid .btn {
+  height: 2.55rem;
+}
+
+.custom-product-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.custom-product-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+  font-size: 0.9rem;
+}
+
+.custom-product-list em {
+  font-style: normal;
+  color: var(--muted);
+  margin-left: 0.45rem;
+}
+
 .product-mode {
   display: grid;
   gap: 0.45rem;

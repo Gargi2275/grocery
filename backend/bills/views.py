@@ -11,15 +11,38 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .catalog import adjustment_catalog, grocery_catalog, load_live_prices
+from .custom_products import UNITS, add_custom_product, delete_custom_product
 from .models import Bill
 from .prices import refresh_live_prices
 from .serializers import (
     BillListSerializer,
     BillSerializer,
+    CustomProductSerializer,
     GenerateBillSerializer,
     LoginSerializer,
 )
 from .services import generate_bills
+
+
+def _serialize_sku(item):
+    return {
+        "name": item["name"],
+        "unit": item["unit"],
+        "unit_price": str(item["unit_price"]),
+        "qty_options": item.get("qty_options") or ["1", "2", "3"],
+        "price_source": item.get("price_source"),
+        "custom": bool(item.get("custom")),
+    }
+
+
+def catalog_payload():
+    cache = load_live_prices()
+    return {
+        "grocery": [_serialize_sku(item) for item in grocery_catalog()],
+        "adjustments": [_serialize_sku(item) for item in adjustment_catalog()],
+        "prices_updated_at": cache.get("updated_at"),
+        "units": list(UNITS),
+    }
 
 
 class LoginView(APIView):
@@ -94,34 +117,32 @@ class CatalogView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        cache = load_live_prices()
-        grocery = [
-            {
-                "name": item["name"],
-                "unit": item["unit"],
-                "unit_price": str(item["unit_price"]),
-                "qty_options": item["qty_options"],
-                "price_source": item.get("price_source"),
-            }
-            for item in grocery_catalog()
-        ]
-        adjustments = [
-            {
-                "name": item["name"],
-                "unit": item["unit"],
-                "unit_price": str(item["unit_price"]),
-                "qty_options": ["1", "2", "3"],
-                "price_source": item.get("price_source"),
-            }
-            for item in adjustment_catalog()
-        ]
-        return Response(
-            {
-                "grocery": grocery,
-                "adjustments": adjustments,
-                "prices_updated_at": cache.get("updated_at"),
-            }
-        )
+        return Response(catalog_payload())
+
+
+class CustomProductView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = CustomProductSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        try:
+            add_custom_product(
+                data["name"],
+                data["unit"],
+                data["unit_price"],
+                data.get("item_type") or "grocery",
+            )
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(catalog_payload(), status=status.HTTP_201_CREATED)
+
+    def delete(self, request):
+        name = (request.data.get("name") if isinstance(request.data, dict) else None) or request.query_params.get("name")
+        if not delete_custom_product(name or ""):
+            return Response({"detail": "Custom product not found."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(catalog_payload())
 
 
 class RefreshPricesView(APIView):
@@ -132,32 +153,10 @@ class RefreshPricesView(APIView):
             payload = refresh_live_prices()
         except Exception as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
-        return Response(
-            {
-                "updated_count": payload.get("updated_count", 0),
-                "prices_updated_at": payload.get("updated_at"),
-                "grocery": [
-                    {
-                        "name": item["name"],
-                        "unit": item["unit"],
-                        "unit_price": str(item["unit_price"]),
-                        "qty_options": item["qty_options"],
-                        "price_source": item.get("price_source"),
-                    }
-                    for item in grocery_catalog()
-                ],
-                "adjustments": [
-                    {
-                        "name": item["name"],
-                        "unit": item["unit"],
-                        "unit_price": str(item["unit_price"]),
-                        "qty_options": ["1", "2", "3"],
-                        "price_source": item.get("price_source"),
-                    }
-                    for item in adjustment_catalog()
-                ],
-            }
-        )
+        data = catalog_payload()
+        data["updated_count"] = payload.get("updated_count", 0)
+        data["prices_updated_at"] = payload.get("updated_at")
+        return Response(data)
 
 
 class BillListView(generics.ListAPIView):
