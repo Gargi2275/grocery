@@ -139,7 +139,7 @@ def _ssl_context() -> ssl.SSLContext:
         return ssl._create_unverified_context()
 
 
-def _fetch(url: str, timeout: int = 18) -> str:
+def _fetch(url: str, timeout: int = 5) -> str:
     req = urllib.request.Request(url, headers=HEADERS)
     errors: list[Exception] = []
     for context in (_ssl_context(), ssl._create_unverified_context()):
@@ -309,7 +309,7 @@ def adjustment_catalog() -> list[dict]:
     return apply_live_prices(ADJUSTMENT_ITEMS)
 
 
-def refresh_live_prices(progress: Callable[[str], None] | None = None) -> dict:
+def refresh_live_prices(progress: Callable[[str], None] | None = None, time_budget: float = 20.0) -> dict:
     def log(message: str) -> None:
         if progress:
             progress(message)
@@ -328,7 +328,11 @@ def refresh_live_prices(progress: Callable[[str], None] | None = None) -> dict:
 
     updated = 0
     google_ok = True
+    start = time.monotonic()
     for sku in catalog:
+        if google_ok and time.monotonic() - start > time_budget:
+            google_ok = False
+            log("Time budget reached; using official retail and web prices for the rest.")
         name = sku["name"]
         fallback = Decimal(sku["unit_price"])
         unit = sku["unit"]
