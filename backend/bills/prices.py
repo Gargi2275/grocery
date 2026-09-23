@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Callable
 
 from .constants import ADJUSTMENT_ITEMS, GROCERY_ITEMS
-from .custom_products import custom_skus
+from .custom_products import custom_skus, load_hidden_names
 
 PRICE_FILE = Path(__file__).resolve().parent / "data" / "live_prices.json"
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -307,9 +307,14 @@ def apply_live_prices(items: list[dict]) -> list[dict]:
 
 
 def _merge_catalog(base: list[dict], extra: list[dict]) -> list[dict]:
-    merged = {item["name"].lower(): item for item in apply_live_prices(base)}
+    hidden = set(load_hidden_names())
+    merged = {}
+    for item in apply_live_prices(base):
+        if item["name"].lower() not in hidden:
+            merged[item["name"].lower()] = item
     for item in extra:
-        merged[item["name"].lower()] = item
+        if item["name"].lower() not in hidden:
+            merged[item["name"].lower()] = item
     return list(merged.values())
 
 

@@ -89,6 +89,7 @@ class SelectedProductSerializer(serializers.Serializer):
 
 
 class CustomProductSerializer(serializers.Serializer):
+    original_name = serializers.CharField(max_length=160, required=False, allow_blank=True)
     name = serializers.CharField(max_length=160)
     unit = serializers.ChoiceField(choices=["kg", "g", "ltr", "ml", "pcs"])
     unit_price = serializers.DecimalField(max_digits=10, decimal_places=2)

@@ -1,10 +1,12 @@
-"""User-added grocery products with a price per kg / g / ltr / ml / pcs."""
+"""User-added and user-edited grocery products with a price per kg / g / ltr / ml / pcs."""
 
 from __future__ import annotations
 
 import json
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
+
+from .constants import ADJUSTMENT_ITEMS, GROCERY_ITEMS
 
 UNITS = ("kg", "g", "ltr", "ml", "pcs")
 
@@ -24,22 +26,56 @@ def _money(value: Decimal) -> Decimal:
     return value.quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
 
 
-def load_custom_records() -> list[dict]:
+def _load_raw() -> dict:
     if not CUSTOM_FILE.exists():
-        return []
+        return {"items": [], "hidden": []}
     try:
         payload = json.loads(CUSTOM_FILE.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        return []
-    items = payload.get("items") if isinstance(payload, dict) else payload
-    if not isinstance(items, list):
-        return []
-    return [row for row in items if isinstance(row, dict)]
+    except (json.JSONDecodeError, OSError):
+        return {"items": [], "hidden": []}
+    if isinstance(payload, list):
+        return {"items": payload, "hidden": []}
+    if not isinstance(payload, dict):
+        return {"items": [], "hidden": []}
+    items = payload.get("items")
+    hidden = payload.get("hidden")
+    return {
+        "items": items if isinstance(items, list) else [],
+        "hidden": hidden if isinstance(hidden, list) else [],
+    }
+
+
+def load_custom_records() -> list[dict]:
+    raw = _load_raw()
+    return [row for row in raw["items"] if isinstance(row, dict)]
+
+
+def load_hidden_names() -> list[str]:
+    raw = _load_raw()
+    return [str(name).strip().lower() for name in raw["hidden"] if str(name).strip()]
+
+
+def save_custom_data(items: list[dict], hidden: list[str] | None = None) -> None:
+    if hidden is None:
+        hidden = load_hidden_names()
+    CUSTOM_FILE.parent.mkdir(parents=True, exist_ok=True)
+    seen = set()
+    deduped_hidden = []
+    for h in hidden:
+        clean = str(h).strip().lower()
+        if clean and clean not in seen:
+            seen.add(clean)
+            deduped_hidden.append(clean)
+
+    payload = {
+        "items": items,
+        "hidden": deduped_hidden,
+    }
+    CUSTOM_FILE.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
 def save_custom_records(items: list[dict]) -> None:
-    CUSTOM_FILE.parent.mkdir(parents=True, exist_ok=True)
-    CUSTOM_FILE.write_text(json.dumps({"items": items}, indent=2), encoding="utf-8")
+    save_custom_data(items, load_hidden_names())
 
 
 def _normalize(name: str, unit: str, unit_price, item_type: str = "grocery") -> dict:
@@ -78,6 +114,7 @@ def _normalize(name: str, unit: str, unit_price, item_type: str = "grocery") -> 
 
 def custom_skus(item_type: str) -> list[dict]:
     rows = []
+    hidden = set(load_hidden_names())
     for record in load_custom_records():
         try:
             row = _normalize(
@@ -87,6 +124,8 @@ def custom_skus(item_type: str) -> list[dict]:
                 record.get("item_type") or "grocery",
             )
         except ValueError:
+            continue
+        if row["name"].lower() in hidden:
             continue
         if row["item_type"] != item_type:
             continue
@@ -102,10 +141,19 @@ def custom_skus(item_type: str) -> list[dict]:
     return rows
 
 
+def _is_builtin_name(name_lower: str) -> bool:
+    builtin_names = {item["name"].lower() for item in GROCERY_ITEMS} | {
+        item["name"].lower() for item in ADJUSTMENT_ITEMS
+    }
+    return name_lower in builtin_names
+
+
 def add_custom_product(name: str, unit: str, unit_price, item_type: str = "grocery") -> dict:
     row = _normalize(name, unit, unit_price, item_type)
+    name_clean = row["name"].lower()
     items = load_custom_records()
-    items = [item for item in items if str(item.get("name") or "").strip().lower() != row["name"].lower()]
+    hidden = [h for h in load_hidden_names() if h != name_clean]
+    items = [item for item in items if str(item.get("name") or "").strip().lower() != name_clean]
     items.append(
         {
             "name": row["name"],
@@ -115,7 +163,45 @@ def add_custom_product(name: str, unit: str, unit_price, item_type: str = "groce
         }
     )
     items.sort(key=lambda item: str(item.get("name") or "").lower())
-    save_custom_records(items)
+    save_custom_data(items, hidden)
+    return row
+
+
+def update_custom_product(
+    original_name: str,
+    name: str,
+    unit: str,
+    unit_price,
+    item_type: str = "grocery",
+) -> dict:
+    row = _normalize(name, unit, unit_price, item_type)
+    orig_clean = " ".join(str(original_name or "").split()).lower()
+    new_clean = row["name"].lower()
+
+    items = load_custom_records()
+    hidden = [h for h in load_hidden_names() if h not in {orig_clean, new_clean}]
+
+    # Filter out both old and new names from custom items
+    items = [
+        item
+        for item in items
+        if str(item.get("name") or "").strip().lower() not in {orig_clean, new_clean}
+    ]
+
+    # If original name was a built-in SKU and the user renamed it, hide the old built-in name
+    if orig_clean and orig_clean != new_clean and _is_builtin_name(orig_clean):
+        hidden.append(orig_clean)
+
+    items.append(
+        {
+            "name": row["name"],
+            "unit": row["unit"],
+            "unit_price": row["unit_price"],
+            "item_type": row["item_type"],
+        }
+    )
+    items.sort(key=lambda item: str(item.get("name") or "").lower())
+    save_custom_data(items, hidden)
     return row
 
 
@@ -124,8 +210,21 @@ def delete_custom_product(name: str) -> bool:
     if not needle:
         return False
     items = load_custom_records()
-    kept = [item for item in items if str(item.get("name") or "").strip().lower() != needle]
-    if len(kept) == len(items):
+    hidden = load_hidden_names()
+    orig_item_count = len(items)
+    kept_items = [item for item in items if str(item.get("name") or "").strip().lower() != needle]
+    
+    # If it was a built-in item or in catalog, add to hidden
+    is_builtin = _is_builtin_name(needle)
+    if is_builtin and needle not in hidden:
+        hidden.append(needle)
+
+    if len(kept_items) == orig_item_count and not is_builtin:
         return False
-    save_custom_records(kept)
+
+    save_custom_data(kept_items, hidden)
     return True
+
+
+def reset_catalog_defaults() -> None:
+    save_custom_data([], [])

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
 import Receipt from "../components/Receipt";
+import ProductModal from "../components/ProductModal";
 
 function localIsoDate(value = new Date()) {
   const year = value.getFullYear();
@@ -38,12 +39,17 @@ export default function Generator() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [catalog, setCatalog] = useState({ grocery: [], adjustments: [], prices_updated_at: null, units: ["kg", "g", "ltr", "ml", "pcs"] });
+  const [catalog, setCatalog] = useState({
+    grocery: [],
+    adjustments: [],
+    prices_updated_at: null,
+    units: ["kg", "g", "ltr", "ml", "pcs"],
+  });
   const [selected, setSelected] = useState({});
   const [productQuery, setProductQuery] = useState("");
   const [refreshingPrices, setRefreshingPrices] = useState(false);
-  const [savingProduct, setSavingProduct] = useState(false);
-  const [newProduct, setNewProduct] = useState({ name: "", unit: "kg", unit_price: "", item_type: "grocery" });
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editModalItem, setEditModalItem] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -86,40 +92,20 @@ export default function Generator() {
   );
   const selectedCount = Object.keys(selected).length;
 
-  async function addProduct(event) {
-    event.preventDefault();
-    event.stopPropagation();
-    setError("");
-    if (!newProduct.name.trim() || !newProduct.unit_price) {
-      setError("Enter a product name, unit, and price.");
-      return;
-    }
-    setSavingProduct(true);
-    try {
-      const data = await api("/api/catalog/products/", {
-        method: "POST",
-        token,
-        body: {
-          name: newProduct.name.trim(),
-          unit: newProduct.unit,
-          unit_price: newProduct.unit_price,
-          item_type: newProduct.item_type,
-        },
-      });
-      setCatalog(data);
-      setNewProduct({ name: "", unit: newProduct.unit, unit_price: "", item_type: "grocery" });
-    } catch (err) {
-      if (err.status === 401) {
-        logout();
-        return;
-      }
-      setError(err.message || "Could not add product.");
-    } finally {
-      setSavingProduct(false);
-    }
+  function openAddProductModal() {
+    setEditModalItem(null);
+    setIsModalOpen(true);
+  }
+
+  function openEditProductModal(item) {
+    setEditModalItem(item);
+    setIsModalOpen(true);
   }
 
   async function removeProduct(name) {
+    if (!window.confirm(`Are you sure you want to remove "${name}" from products?`)) {
+      return;
+    }
     setError("");
     try {
       const data = await api("/api/catalog/products/", {
@@ -449,84 +435,55 @@ export default function Generator() {
                 ? `Live unit prices updated ${formatPriceTime(catalog.prices_updated_at)}. Google is tried first; official all-India retail rates fill in when Google blocks bots.`
                 : "Unit prices are the last saved market rates. Update them from Google before generating."}
             </p>
-            <button
-              type="button"
-              className="btn secondary"
-              onClick={refreshPrices}
-              disabled={refreshingPrices || busy}
-            >
-              {refreshingPrices ? "Updating prices…" : "Update prices from Google"}
-            </button>
-            <div className="add-product">
-              <p className="add-product-title">Add product price</p>
-              <p className="muted field-hint">
-                Save a rate per kg, g, ltr, ml, or pcs. Custom products are included when bills are generated.
-              </p>
-              <div className="add-product-grid">
-                <label>
-                  Product name
-                  <input
-                    value={newProduct.name}
-                    onChange={(e) => setNewProduct((current) => ({ ...current, name: e.target.value }))}
-                    placeholder="Ghee"
-                  />
-                </label>
-                <label>
-                  Unit
-                  <select
-                    value={newProduct.unit}
-                    onChange={(e) => setNewProduct((current) => ({ ...current, unit: e.target.value }))}
-                  >
-                    {(catalog.units || ["kg", "g", "ltr", "ml", "pcs"]).map((unit) => (
-                      <option key={unit} value={unit}>
-                        {UNIT_LABELS[unit] || unit}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Price per {newProduct.unit}
-                  <input
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    value={newProduct.unit_price}
-                    onChange={(e) => setNewProduct((current) => ({ ...current, unit_price: e.target.value }))}
-                    placeholder="0.00"
-                  />
-                </label>
-                <label>
-                  Type
-                  <select
-                    value={newProduct.item_type}
-                    onChange={(e) => setNewProduct((current) => ({ ...current, item_type: e.target.value }))}
-                  >
-                    <option value="grocery">Grocery</option>
-                    <option value="adjustment">Extra</option>
-                  </select>
-                </label>
-                <button type="button" className="btn secondary" onClick={addProduct} disabled={savingProduct || busy}>
-                  {savingProduct ? "Saving…" : "Add product"}
-                </button>
-              </div>
-              {customItems.length ? (
-                <ul className="custom-product-list">
-                  {customItems.map((item) => (
-                    <li key={item.name}>
-                      <span>
-                        {item.name}
-                        <em>
-                          ₹ {item.unit_price} / {item.unit}
-                        </em>
-                      </span>
-                      <button type="button" className="text-btn" onClick={() => removeProduct(item.name)}>
-                        Remove
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
+            <div className="price-bar-actions">
+              <button
+                type="button"
+                className="btn secondary"
+                onClick={refreshPrices}
+                disabled={refreshingPrices || busy}
+              >
+                {refreshingPrices ? "Updating prices…" : "🔄 Update prices from Google"}
+              </button>
+              <button
+                type="button"
+                className="btn secondary btn-manage-products"
+                onClick={openAddProductModal}
+              >
+                ＋ Add / Manage Products
+                {customItems.length > 0 && (
+                  <span className="custom-count-badge">{customItems.length} custom</span>
+                )}
+              </button>
             </div>
+            {customItems.length > 0 && (
+              <div className="custom-items-quick-list">
+                <span className="quick-list-title">Custom Items:</span>
+                <div className="quick-items-tags">
+                  {customItems.map((item) => (
+                    <span key={item.name} className="quick-item-tag">
+                      <span className="quick-item-name">{item.name}</span>
+                      <span className="quick-item-price">₹{item.unit_price}/{item.unit}</span>
+                      <button
+                        type="button"
+                        className="quick-item-action edit"
+                        title="Edit product"
+                        onClick={() => openEditProductModal(item)}
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        type="button"
+                        className="quick-item-action delete"
+                        title="Delete product"
+                        onClick={() => removeProduct(item.name)}
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           <div className="span-2 product-mode">
             <span>Products</span>
@@ -557,20 +514,29 @@ export default function Generator() {
           {form.product_mode === "select" && (
             <div className="span-2 product-picker">
               <div className="product-picker-toolbar">
-                <input
-                  type="search"
-                  placeholder="Search products"
-                  value={productQuery}
-                  onChange={(e) => setProductQuery(e.target.value)}
-                />
-                <p className="muted product-count">
-                  {selectedCount} selected
+                <div className="picker-search-row">
+                  <input
+                    type="search"
+                    placeholder="Search products…"
+                    value={productQuery}
+                    onChange={(e) => setProductQuery(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="btn secondary btn-add-inline"
+                    onClick={openAddProductModal}
+                  >
+                    ＋ Add Product
+                  </button>
+                </div>
+                <div className="product-count">
+                  <span>{selectedCount} selected</span>
                   {selectedCount > 0 ? (
                     <button type="button" className="text-btn" onClick={() => setSelected({})}>
-                      Clear
+                      Clear selection
                     </button>
                   ) : null}
-                </p>
+                </div>
               </div>
               <ProductGroup
                 title="Grocery"
@@ -578,6 +544,7 @@ export default function Generator() {
                 selected={selected}
                 onToggle={toggleProduct}
                 onQty={setQty}
+                onEdit={openEditProductModal}
                 onRemove={removeProduct}
               />
               <ProductGroup
@@ -586,10 +553,16 @@ export default function Generator() {
                 selected={selected}
                 onToggle={toggleProduct}
                 onQty={setQty}
+                onEdit={openEditProductModal}
                 onRemove={removeProduct}
               />
               {!filteredGrocery.length && !filteredAdjustments.length ? (
-                <p className="muted">No products match that search.</p>
+                <div className="empty-catalog-hint">
+                  <p className="muted">No products match "{productQuery}".</p>
+                  <button type="button" className="btn secondary" onClick={openAddProductModal}>
+                    ＋ Add "{productQuery}" as new product
+                  </button>
+                </div>
               ) : null}
             </div>
           )}
@@ -605,6 +578,27 @@ export default function Generator() {
                 : "Generate bill"}
         </button>
       </form>
+
+      <ProductModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditModalItem(null);
+        }}
+        catalog={catalog}
+        onCatalogChange={(newCatalog) => setCatalog(newCatalog)}
+        token={token}
+        onProductDeleted={(deletedName) => {
+          setSelected((current) => {
+            if (current[deletedName] == null) return current;
+            const next = { ...current };
+            delete next[deletedName];
+            return next;
+          });
+        }}
+        initialEditItem={editModalItem}
+      />
+
       {bills.length > 0 ? (
         <div className="receipt-stack">
           {bills.length > 1 ? (
@@ -652,7 +646,7 @@ export default function Generator() {
   );
 }
 
-function ProductGroup({ title, items, selected, onToggle, onQty, onRemove }) {
+function ProductGroup({ title, items, selected, onToggle, onQty, onEdit, onRemove }) {
   if (!items.length) return null;
   return (
     <section className="product-group">
@@ -670,19 +664,41 @@ function ProductGroup({ title, items, selected, onToggle, onQty, onRemove }) {
                   {item.custom ? " · custom" : ""}
                 </span>
               </label>
-              {checked ? (
-                <select value={selected[item.name]} onChange={(e) => onQty(item.name, e.target.value)}>
-                  {(item.qty_options || ["1"]).map((qty) => (
-                    <option key={qty} value={qty}>
-                      {qty} {item.unit}
-                    </option>
-                  ))}
-                </select>
-              ) : item.custom ? (
-                <button type="button" className="text-btn" onClick={() => onRemove(item.name)}>
-                  Remove
-                </button>
-              ) : null}
+              <div className="product-row-controls">
+                {checked && (
+                  <select value={selected[item.name]} onChange={(e) => onQty(item.name, e.target.value)}>
+                    {(item.qty_options || ["1"]).map((qty) => (
+                      <option key={qty} value={qty}>
+                        {qty} {item.unit}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <div className="product-item-actions">
+                  <button
+                    type="button"
+                    className="icon-action-btn"
+                    title="Edit rate / details"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEdit(item);
+                    }}
+                  >
+                    ✏️
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-action-btn delete"
+                    title="Delete product"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRemove(item.name);
+                    }}
+                  >
+                    🗑️
+                  </button>
+                </div>
+              </div>
             </li>
           );
         })}
@@ -690,14 +706,6 @@ function ProductGroup({ title, items, selected, onToggle, onQty, onRemove }) {
     </section>
   );
 }
-
-const UNIT_LABELS = {
-  kg: "kg",
-  g: "gram (g)",
-  ltr: "liter (ltr)",
-  ml: "ml",
-  pcs: "pcs",
-};
 
 function filterCatalog(items, query) {
   const needle = query.trim().toLowerCase();
@@ -717,3 +725,6 @@ function formatPriceTime(value) {
     minute: "2-digit",
   });
 }
+
+
+

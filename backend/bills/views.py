@@ -11,7 +11,12 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .catalog import adjustment_catalog, grocery_catalog, load_live_prices
-from .custom_products import UNITS, add_custom_product, delete_custom_product
+from .custom_products import (
+    UNITS,
+    add_custom_product,
+    delete_custom_product,
+    update_custom_product,
+)
 from .models import Bill
 from .prices import refresh_live_prices
 from .serializers import (
@@ -127,8 +132,35 @@ class CustomProductView(APIView):
         serializer = CustomProductSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
+        orig_name = (data.get("original_name") or "").strip()
         try:
-            add_custom_product(
+            if orig_name:
+                update_custom_product(
+                    orig_name,
+                    data["name"],
+                    data["unit"],
+                    data["unit_price"],
+                    data.get("item_type") or "grocery",
+                )
+            else:
+                add_custom_product(
+                    data["name"],
+                    data["unit"],
+                    data["unit_price"],
+                    data.get("item_type") or "grocery",
+                )
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(catalog_payload(), status=status.HTTP_201_CREATED)
+
+    def put(self, request):
+        serializer = CustomProductSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        orig_name = (data.get("original_name") or data["name"]).strip()
+        try:
+            update_custom_product(
+                orig_name,
                 data["name"],
                 data["unit"],
                 data["unit_price"],
@@ -136,12 +168,15 @@ class CustomProductView(APIView):
             )
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-        return Response(catalog_payload(), status=status.HTTP_201_CREATED)
+        return Response(catalog_payload())
+
+    def patch(self, request):
+        return self.put(request)
 
     def delete(self, request):
         name = (request.data.get("name") if isinstance(request.data, dict) else None) or request.query_params.get("name")
-        if not delete_custom_product(name or ""):
-            return Response({"detail": "Custom product not found."}, status=status.HTTP_404_NOT_FOUND)
+        if not name or not delete_custom_product(name):
+            return Response({"detail": "Product not found or could not be removed."}, status=status.HTTP_404_NOT_FOUND)
         return Response(catalog_payload())
 
 
