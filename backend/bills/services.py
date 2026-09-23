@@ -478,15 +478,6 @@ def generate_bill_payload(
     return bill
 
 
-def split_customer_names(customer_name: str, count: int) -> list[str]:
-    names = [part.strip() for part in re.split(r"[\n,;]+", customer_name or "") if part.strip()]
-    if not names:
-        raise ValueError("customer_name is required.")
-    if len(names) == 1:
-        return names * count
-    return [names[i % len(names)] for i in range(count)]
-
-
 def _bill_line_batches(count: int, product_mode: str, selected_products) -> list[tuple[list[dict], list[dict]]]:
     if count < 1:
         return []
@@ -531,16 +522,19 @@ def generate_bills(
     payment_mode: str = "cash",
     receipt_template: str = Bill.TEMPLATE_INVOICE,
 ) -> list:
+    cleaned_customer_name = (customer_name or "").strip()
+    if not cleaned_customer_name:
+        raise ValueError("customer_name is required.")
+
     if date_mode == Bill.DATE_MONTHLY:
         month_dates = monthly_bill_dates(date_range_start, date_range_end)
-        names = split_customer_names(customer_name, len(month_dates))
         used_times: set[str] = set()
         batches = _bill_line_batches(len(month_dates), product_mode, selected_products)
         return [
             generate_bill_payload(
                 shop_name=shop_name,
                 gst_number=gst_number,
-                customer_name=name,
+                customer_name=cleaned_customer_name,
                 max_amount=max_amount,
                 date_mode=date_mode,
                 bill_date=month_date,
@@ -560,19 +554,18 @@ def generate_bills(
                 adjustment_lines=adjustments,
                 allow_grow=product_mode != "select" or len(month_dates) > 1,
             )
-            for name, month_date, (grocery, adjustments) in zip(names, month_dates, batches)
+            for month_date, (grocery, adjustments) in zip(month_dates, batches)
         ]
 
     if count < 1:
         raise ValueError("count must be at least 1.")
-    names = split_customer_names(customer_name, count)
     used_times: set[str] = set()
     batches = _bill_line_batches(count, product_mode, selected_products)
     return [
         generate_bill_payload(
             shop_name=shop_name,
             gst_number=gst_number,
-            customer_name=name,
+            customer_name=cleaned_customer_name,
             max_amount=max_amount,
             date_mode=date_mode,
             bill_date=bill_date,
@@ -587,10 +580,10 @@ def generate_bills(
             customer_phone=customer_phone,
             payment_mode=payment_mode,
             receipt_template=receipt_template,
-                used_times=used_times,
-                grocery_lines=grocery,
-                adjustment_lines=adjustments,
-                allow_grow=product_mode != "select" or count > 1,
-            )
-        for name, (grocery, adjustments) in zip(names, batches)
+            used_times=used_times,
+            grocery_lines=grocery,
+            adjustment_lines=adjustments,
+            allow_grow=product_mode != "select" or count > 1,
+        )
+        for grocery, adjustments in batches
     ]

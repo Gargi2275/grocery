@@ -298,7 +298,7 @@ export default function Generator() {
             <input
               value={form.customer_name}
               onChange={(e) => update("customer_name", e.target.value)}
-              placeholder={Number(form.bill_count) > 1 ? "Ravi, Sita, Mohan" : ""}
+              placeholder="e.g. Ramesh Kumar"
               required
             />
           </label>
@@ -356,11 +356,6 @@ export default function Generator() {
               Standard Invoice matches the mandatory grocery bill format. Each bill gets its own date and time.
             </p>
           </div>
-          {Number(form.bill_count) > 1 || form.date_mode === "monthly" ? (
-            <p className="span-2 muted field-hint">
-              Separate several customer names with commas. One name is reused on every bill.
-            </p>
-          ) : null}
           <label>
             Max amount
             <input
