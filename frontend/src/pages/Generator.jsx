@@ -450,35 +450,6 @@ export default function Generator() {
                 )}
               </button>
             </div>
-            {customItems.length > 0 && (
-              <div className="custom-items-quick-list">
-                <span className="quick-list-title">Custom Items:</span>
-                <div className="quick-items-tags">
-                  {customItems.map((item) => (
-                    <span key={item.name} className="quick-item-tag">
-                      <span className="quick-item-name">{item.name}</span>
-                      <span className="quick-item-price">₹{item.unit_price}/{item.unit}</span>
-                      <button
-                        type="button"
-                        className="quick-item-action edit"
-                        title="Edit product"
-                        onClick={() => openEditProductModal(item)}
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        type="button"
-                        className="quick-item-action delete"
-                        title="Delete product"
-                        onClick={() => removeProduct(item.name)}
-                      >
-                        ✕
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
           <div className="span-2 product-mode">
             <span>Products</span>
@@ -620,13 +591,13 @@ export default function Generator() {
               </button>
             </div>
           ) : null}
-          <div className="receipt-preview">
+          <div className={`receipt-preview ${bills.length > 1 ? "no-print" : ""}`}>
             <Receipt bill={bills[activeIndex]} printLabel={bills.length > 1 ? "Print all" : "Print"} />
           </div>
           {bills.length > 1 ? (
             <div className="receipt-print-all">
-              {bills.map((item) => (
-                <Receipt key={item.id} bill={item} hideActions />
+              {bills.map((item, index) => (
+                <Receipt key={item.id || item.bill_number || index} bill={item} hideActions />
               ))}
             </div>
           ) : null}

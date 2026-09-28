@@ -1,0 +1,11 @@
+{
+  "items": [
+    {
+      "name": "pure ghee",
+      "unit": "kg",
+      "unit_price": "120.00",
+      "item_type": "grocery"
+    }
+  ],
+  "hidden": []
+}

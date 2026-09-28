@@ -306,69 +306,7 @@ textarea:focus {
   margin-left: 0.2rem;
 }
 
-.custom-items-quick-list {
-  display: grid;
-  gap: 0.4rem;
-  padding-top: 0.6rem;
-  border-top: 1px dashed var(--line);
-}
 
-.quick-list-title {
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.quick-items-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-
-.quick-item-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  background: #fff;
-  border: 1px solid var(--line);
-  padding: 0.25rem 0.5rem;
-  border-radius: 8px;
-  font-size: 0.82rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-}
-
-.quick-item-name {
-  font-weight: 600;
-  color: var(--ink);
-}
-
-.quick-item-price {
-  color: var(--accent);
-  font-weight: 700;
-}
-
-.quick-item-action {
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  padding: 0 0.15rem;
-  font-size: 0.75rem;
-  color: var(--muted);
-  border-radius: 4px;
-  transition: all 0.15s;
-}
-
-.quick-item-action:hover {
-  color: var(--ink);
-  background: #f0eae0;
-}
-
-.quick-item-action.delete:hover {
-  color: var(--danger);
-  background: #fbeae8;
-}
 
 .product-mode {
   display: grid;
@@ -1598,53 +1536,125 @@ textarea:focus {
 }
 
 @media print {
-  body {
-    background: white;
+  @page {
+    size: auto;
+    margin: 8mm 10mm;
+  }
+
+  *,
+  *::before,
+  *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  html,
+  body,
+  #root,
+  .app-shell,
+  .app-main,
+  .page-grid,
+  .receipt-stack {
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    overflow-x: visible !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    box-shadow: none !important;
+    background: #fff !important;
   }
 
   .no-print,
-  .app-nav {
+  .app-nav,
+  .bill-switcher,
+  .panel,
+  .receipt-actions {
     display: none !important;
   }
 
-  .app-main,
-  .page-grid {
-    display: block;
-    width: auto;
-    margin: 0;
-    max-width: none;
+  .receipt-preview {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
 
-  .receipt-stack:has(.receipt-print-all) .receipt-preview {
+  .receipt-preview.no-print {
     display: none !important;
   }
 
   .receipt-print-all {
-    display: block;
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .receipt-wrap {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
   .receipt-print-all .receipt-wrap {
-    page-break-after: always;
-    break-after: page;
+    display: block !important;
+    page-break-after: always !important;
+    break-after: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
   }
 
   .receipt-print-all .receipt-wrap:last-child {
-    page-break-after: auto;
-    break-after: auto;
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+
+  .receipt-paper {
+    margin: 0 auto !important;
+    box-shadow: none !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
   .receipt-paper.thermal-paper {
-    border: 0;
-    width: 80mm;
-    margin: 0 auto;
-    box-shadow: none;
+    border: 0 !important;
+    width: 80mm !important;
+    max-width: 80mm !important;
+    background: #fff !important;
+    color: #000 !important;
   }
 
   .receipt-paper.invoice-paper {
-    border: 1px solid #222;
-    width: 100%;
-    max-width: 190mm;
-    margin: 0 auto;
-    box-shadow: none;
+    border: 1px solid #222 !important;
+    width: 100% !important;
+    max-width: 190mm !important;
+    background: #fff !important;
+    color: #000 !important;
+    box-sizing: border-box !important;
+  }
+
+  .invoice-table,
+  .receipt-table,
+  .invoice-grid,
+  .invoice-footer {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .invoice-table tr,
+  .receipt-table tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 }
+
